@@ -30,9 +30,8 @@ const PRODUCTS = [
     'https://www.toygarden.com/product/takara-tomy-beyblade-x-ux-01-starter-dran-buster-1-60a'
 ];
 
-const MALLOFTOYS_IN_STOCK_LABEL = 'Add to cart';
-
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS);
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS, 10) || 3000;
+const FETCH_RETRIES = parseInt(process.env.FETCH_RETRIES, 10) || 3;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const telegramEnabled = Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
@@ -46,19 +45,6 @@ const color = {
 
 function paint(text, tone) {
     return `${color[tone]}${text}${color.reset}`;
-}
-
-function getMallOfToysSubmitButtonLabel(html) {
-    const match = html.match(
-        /<button[^>]*\bname="add"[^>]*\bclass="[^"]*\bproduct-form__submit\b[^"]*"[^>]*>[\s\S]*?<span>\s*([^<]+?)\s*<\/span>/i
-    );
-    if (!match) {
-        const fallback = html.match(
-            /<button[^>]*\bclass="[^"]*\bproduct-form__submit\b[^"]*"[^>]*>[\s\S]*?<span>\s*([^<]+?)\s*<\/span>/i
-        );
-        return fallback ? fallback[1].trim() : null;
-    }
-    return match[1].trim();
 }
 
 function isPremiumToyInStock(html) {
@@ -180,14 +166,6 @@ function getSite(url) {
 function isInStock(url, html) {
     const site = getSite(url);
 
-    if (site === 'malloftoys') {
-        const label = getMallOfToysSubmitButtonLabel(html);
-        if (!label) {
-            throw new Error('Could not find product submit button on page');
-        }
-        return label === MALLOFTOYS_IN_STOCK_LABEL;
-    }
-
     if (site === 'toysrus') {
         return isToysRUsInStock(html);
     }
@@ -219,18 +197,89 @@ const BROWSER_HEADERS = {
     'User-Agent':
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-MY,en;q=0.9',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
 };
 
+const SHOPIFY_JSON_HEADERS = {
+    ...BROWSER_HEADERS,
+    Accept: 'application/json, text/javascript, */*; q=0.01',
+    Referer: 'https://malloftoys.com/',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
+};
+
+function mallOfToysJsonUrl(url) {
+    const [path] = url.split('?');
+    return `${path}.js`;
+}
+
+function isMallOfToysInStock(product) {
+    if (typeof product?.available === 'boolean') {
+        return product.available;
+    }
+    if (Array.isArray(product?.variants)) {
+        return product.variants.some((variant) => variant.available);
+    }
+    throw new Error('Unexpected Mall of Toys product response');
+}
+
+async function fetchWithRetry(url, options) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+        try {
+            return await axios.get(url, options);
+        } catch (error) {
+            lastError = error;
+            const status = error.response?.status;
+            const retryable = status === 403 || status === 429 || status === 503;
+
+            if (retryable && attempt < FETCH_RETRIES) {
+                await sleep(1000 * (attempt + 1));
+                continue;
+            }
+
+            if (status === 403) {
+                throw new Error('403 Forbidden (Cloudflare bot protection)');
+            }
+
+            throw error;
+        }
+    }
+
+    throw lastError;
+}
+
 async function fetchPageHtml(url) {
-    const response = await axios.get(url, {
+    const response = await fetchWithRetry(url, {
         headers: BROWSER_HEADERS,
         timeout: 30000,
     });
     return response.data;
 }
 
+async function fetchMallOfToysProduct(url) {
+    const response = await fetchWithRetry(mallOfToysJsonUrl(url), {
+        headers: SHOPIFY_JSON_HEADERS,
+        timeout: 30000,
+    });
+    return response.data;
+}
+
 async function checkProduct(url) {
+    if (getSite(url) === 'malloftoys') {
+        const product = await fetchMallOfToysProduct(url);
+        return isMallOfToysInStock(product);
+    }
+
     const html = await fetchPageHtml(url);
     return isInStock(url, html);
 }
