@@ -30,9 +30,9 @@ const PRODUCTS = [
     'https://www.toygarden.com/product/takara-tomy-beyblade-x-ux-01-starter-dran-buster-1-60a'
 ];
 
-const POLL_INTERVAL_MS = 3000;
 const MALLOFTOYS_IN_STOCK_LABEL = 'Add to cart';
 
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS);
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const telegramEnabled = Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
