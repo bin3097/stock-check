@@ -3,11 +3,6 @@ require('dotenv').config({ quiet: true });
 const axios = require('axios');
 
 const PRODUCTS = [
-    'https://malloftoys.com/products/bx-01-dran-sword?_pos=1&_sid=87ed6a530&_ss=r',
-    'https://malloftoys.com/products/ux-03-wizardrod-booster',
-    'https://malloftoys.com/products/ux-15-sharkscale-deck-set',
-    'https://malloftoys.com/products/ux-08-silver-wolf',
-    'https://malloftoys.com/products/bx-23-pheonix-wing-starter-set?_pos=9&_sid=8c99b5c4c&_ss=r',
     'https://www.toysrus.com.my/beyblade-bx-01-starter-dran-sw-10007158.html',
     'https://www.toysrus.com.my/beyblade-x-ux-15-shark-scale-deck-set-10098506.html',
     'https://www.toysrus.com.my/beyblade-x-ux-03-booster-wizard-rod-5-70db-10026914.html',
@@ -154,9 +149,6 @@ function getSite(url) {
     if (url.includes('premiumtoy.my')) {
         return 'premiumtoy';
     }
-    if (url.includes('malloftoys.com')) {
-        return 'malloftoys';
-    }
     if (url.includes('beybladenexus.com')) {
         return 'beybladenexus';
     }
@@ -213,30 +205,6 @@ const BROWSER_HEADERS = {
     'Sec-Fetch-User': '?1',
 };
 
-const SHOPIFY_JSON_HEADERS = {
-    ...BROWSER_HEADERS,
-    Accept: 'application/json, text/javascript, */*; q=0.01',
-    Referer: 'https://malloftoys.com/',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin',
-};
-
-function mallOfToysJsonUrl(url) {
-    const [path] = url.split('?');
-    return `${path}.js`;
-}
-
-function isMallOfToysInStock(product) {
-    if (typeof product?.available === 'boolean') {
-        return product.available;
-    }
-    if (Array.isArray(product?.variants)) {
-        return product.variants.some((variant) => variant.available);
-    }
-    throw new Error('Unexpected Mall of Toys product response');
-}
-
 async function fetchWithRetry(url, options) {
     let lastError;
 
@@ -272,20 +240,7 @@ async function fetchPageHtml(url) {
     return response.data;
 }
 
-async function fetchMallOfToysProduct(url) {
-    const response = await fetchWithRetry(mallOfToysJsonUrl(url), {
-        headers: SHOPIFY_JSON_HEADERS,
-        timeout: 30000,
-    });
-    return response.data;
-}
-
 async function checkProduct(url) {
-    if (getSite(url) === 'malloftoys') {
-        const product = await fetchMallOfToysProduct(url);
-        return isMallOfToysInStock(product);
-    }
-
     const html = await fetchPageHtml(url);
     return isInStock(url, html);
 }
