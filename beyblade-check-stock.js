@@ -18,8 +18,6 @@ const PRODUCTS = [
     // 'https://www.premiumtoy.my/takara-tomy-beyblade-x-bx-40-winder-launcher-l.html',
     // 'https://www.premiumtoy.my/takara-tomy-beyblade-x-bx-28-string-launcher-white-ver.html',
     // 'https://www.premiumtoy.my/takara-tomy-beyblade-x-bx-47-l-string-launcher-red-ver.html',
-    'https://www.beybladenexus.com/product/beyblade-x-wizard-rod-5-70db-booster-ux-03-takara-tomy',
-    'https://www.beybladenexus.com/product/beyblade-x-phoenix-wing-9-60gf-starter-bx-23',
     'https://www.hlj.com/beyblade-bx-23-starter-phoenix-wing-9-60gf-tkt91309',
     'https://www.hlj.com/beyblade-x-ux-15-shark-scale-deck-set-tkt98243',
     // 'https://www.hlj.com/beyblade-x-bx-51-string-launcher-black-x-green-tkt08926',
@@ -106,24 +104,6 @@ function isHljInStock(html) {
     return false;
 }
 
-function isBeybladeNexusInStock(html) {
-    const buyButton = /<button[^>]*\btype="submit"[^>]*\bclass="[^"]*\bbtn-primary\b[^"]*\bbtn-shadow\b[^"]*\bbtn-lg\b[^>]*>[\s\S]*?\bBuy\b/i.test(
-        html
-    );
-    if (buyButton) {
-        return true;
-    }
-
-    if (
-        /Product is out of stock/i.test(html) ||
-        /og:availability" content="out of stock"/i.test(html)
-    ) {
-        return false;
-    }
-
-    return false;
-}
-
 function isToysRUsInStock(html) {
     const addToCartButton = html.match(
         /<button[^>]*\bclass="[^"]*\badd-to-cart\b[^"]*"[^>]*>[\s\S]*?\bAdd to Cart\b/i
@@ -149,9 +129,6 @@ function getSite(url) {
     if (url.includes('premiumtoy.my')) {
         return 'premiumtoy';
     }
-    if (url.includes('beybladenexus.com')) {
-        return 'beybladenexus';
-    }
     if (url.includes('hlj.com')) {
         return 'hlj';
     }
@@ -170,10 +147,6 @@ function isInStock(url, html) {
 
     if (site === 'premiumtoy') {
         return isPremiumToyInStock(html);
-    }
-
-    if (site === 'beybladenexus') {
-        return isBeybladeNexusInStock(html);
     }
 
     if (site === 'hlj') {
